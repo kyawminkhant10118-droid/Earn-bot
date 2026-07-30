@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import random
 import telebot
 from telebot import types
 
@@ -13,19 +12,15 @@ TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 CHANNELS_RAW = os.environ.get("CHANNELS", "@channel1,@channel2,@channel3,@channel4")
 CHANNELS = [ch.strip() for ch in CHANNELS_RAW.split(",") if ch.strip()]
 
-# Proof Channel (ငွေလွှဲပြေစာ သက်သေပြရန် Channel)
+# Proof Channel နှင့် သက်သေပြရန် ပုံ URL
 PROOF_CHANNEL = os.environ.get("PROOF_CHANNEL", "")  # ဥပမာ - "@my_proof_channel"
+PROOF_IMAGE_URL = os.environ.get("PROOF_IMAGE_URL", "https://i.ibb.co/3s3KqV7/reward-logo.png") # သင့် Logo ပုံ Link ထည့်နိုင်သည်
 
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))
 REWARD_PER_REF = int(os.environ.get("REWARD_PER_REF", "100"))
-
-# အနည်းဆုံး ငွေထုတ်ယူနိုင်သည့် ပမာဏ (5000 ကျပ်)
 MIN_WITHDRAW = int(os.environ.get("MIN_WITHDRAW", "5000"))
 
 bot = telebot.TeleBot(TOKEN)
-
-# Temporary memory for Math Captcha answers {user_id: answer}
-captcha_store = {}
 
 # ==========================================
 # 🗄️ DATABASE SETUP
@@ -72,7 +67,6 @@ def get_unsubscribed_channels(user_id):
         if not ch_target:
             continue
             
-        # Channel Link များ/Username များကို စနစ်တကျ ခွဲထုတ်ခြင်း
         if "t.me/" in ch_target:
             if not "+" in ch_target and not "joinchat" in ch_target:
                 ch_target = "@" + ch_target.split("t.me/")[-1].replace("+", "").strip()
@@ -93,8 +87,6 @@ def get_channels_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     for index, ch in enumerate(CHANNELS, 1):
         ch_clean = ch.strip()
-        
-        # Link ဖန်တီးခြင်း
         if ch_clean.startswith("http://") or ch_clean.startswith("https://"):
             url = ch_clean
         elif ch_clean.startswith("@"):
@@ -121,14 +113,16 @@ def get_main_keyboard():
 def get_admin_keyboard():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     btn1 = types.KeyboardButton("📊 စာရင်းဇယားကြည့်ရန်")
-    btn2 = types.KeyboardButton("📢 Broadcast စာပို့မည်")
-    btn3 = types.KeyboardButton("🚫 User Ban/Unban")
-    btn4 = types.KeyboardButton("🔙 Main Menu သို့")
-    markup.add(btn1, btn2, btn3, btn4)
+    btn2 = types.KeyboardButton("💰 မုန့်ဖိုး ပြင်ဆင်ရန်")
+    btn3 = types.KeyboardButton("🔍 User အကြောင်း စစ်မည်")
+    btn4 = types.KeyboardButton("📢 Broadcast စာပို့မည်")
+    btn5 = types.KeyboardButton("🚫 User Ban/Unban")
+    btn6 = types.KeyboardButton("🔙 Main Menu သို့")
+    markup.add(btn1, btn2, btn3, btn4, btn5, btn6)
     return markup
 
 # ==========================================
-# 🤖 START & CAPTCHA SYSTEM
+# 🤖 START SYSTEM (No Captcha)
 # ==========================================
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
@@ -141,7 +135,7 @@ def start_cmd(message):
     args = message.text.split()
     conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_id, is_verified, referred_by FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
 
     referrer_id = None
@@ -153,49 +147,26 @@ def start_cmd(message):
     if not user:
         cursor.execute("INSERT INTO users (user_id, balance, referred_by, is_verified, is_banned) VALUES (?, 0, ?, 0, 0)", (user_id, referrer_id))
         conn.commit()
+    else:
+        # မ Join ရသေးသော User ဟောင်း ဖြစ်ပြီး referrer_id မရှိသေးပါက ဖြည့်သွင်းခြင်း
+        if user[1] == 0 and not user[2] and referrer_id:
+            cursor.execute("UPDATE users SET referred_by = ? WHERE user_id = ?", (referrer_id, user_id))
+            conn.commit()
 
     conn.close()
 
-    # Math Captcha ဖန်တီးခြင်း
-    num1 = random.randint(1, 10)
-    num2 = random.randint(1, 10)
-    captcha_store[user_id] = num1 + num2
-
-    msg = bot.send_message(
-        user_id, 
-        f"🤖 **Anti-Bot Verification**\n\nကျေးဇူးပြု၍ အောက်ပါ သင်္ချာပုစ္ဆာ၏ အဖြေကို ရေးပို့ပေးပါ:\n\n👉 `{num1} + {num2} = ?`", 
-        parse_mode="Markdown"
-    )
-    bot.register_next_step_handler(msg, process_captcha)
-
-def process_captcha(message):
-    user_id = message.from_user.id
-    correct_ans = captcha_store.get(user_id)
-
-    try:
-        user_ans = int(message.text.strip())
-        if user_ans == correct_ans:
-            if user_id in captcha_store:
-                del captcha_store[user_id]
-                
-            unsubscribed = get_unsubscribed_channels(user_id)
-            if unsubscribed:
-                bot.send_message(
-                    user_id,
-                    f"✅ Verification အောင်မြင်ပါသည်။\n\nBot ကို စတင်အသုံးပြုရန် အောက်ပါ Channel **အားလုံး** ကို Join ပေးပါနော်။",
-                    reply_markup=get_channels_keyboard()
-                )
-            else:
-                bot.send_message(user_id, f"🎉 မင်္ဂလာပါ {message.from_user.first_name}!\n\nအောက်ပါ မီနူးများမှတစ်ဆင့် စတင်အသုံးပြုနိုင်ပါပြီ။", reply_markup=get_main_keyboard())
-        else:
-            msg = bot.send_message(user_id, "❌ အဖြေ မှားယွင်းနေပါသည်။ ထပ်မံ ကြိုးစားကြည့်ပါ:")
-            bot.register_next_step_handler(msg, process_captcha)
-    except Exception:
-        msg = bot.send_message(user_id, "⚠️ ဂဏန်းသီးသန့်သာ ရေးပို့ပေးပါ။ ဥပမာ - 12")
-        bot.register_next_step_handler(msg, process_captcha)
+    unsubscribed = get_unsubscribed_channels(user_id)
+    if unsubscribed:
+        bot.send_message(
+            user_id,
+            f"🎉 မင်္ဂလာပါ {message.from_user.first_name}!\n\nBot ကို စတင်အသုံးပြုရန် အောက်ပါ Channel **အားလုံး** ကို Join ပေးပါနော်။",
+            reply_markup=get_channels_keyboard()
+        )
+    else:
+        bot.send_message(user_id, f"🎉 မင်္ဂလာပါ {message.from_user.first_name}!\n\nအောက်ပါ မီနူးများမှတစ်ဆင့် စတင်အသုံးပြုနိုင်ပါပြီ။", reply_markup=get_main_keyboard())
 
 # ==========================================
-# 📢 CHANNEL SUBSCRIPTION CHECKER
+# 📢 CHANNEL SUBSCRIPTION CHECKER (FIXED REWARD BUG)
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def check_sub_callback(call):
@@ -210,15 +181,19 @@ def check_sub_callback(call):
         row = cursor.fetchone()
 
         if row and row[1] == 0:
+            # User အား အတည်ပြုပြီးကြောင်း မှတ်တမ်းတင်ခြင်း
             cursor.execute("UPDATE users SET is_verified = 1 WHERE user_id = ?", (user_id,))
             ref_id = row[0]
+            
             if ref_id:
+                # Referral ပိုင်ရှင်၏ Balance ကို တိုးပေးခြင်း
                 cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (REWARD_PER_REF, ref_id))
                 conn.commit()
+                
                 try:
                     bot.send_message(ref_id, f"🎉 သင့် Referral Link မှတစ်ဆင့် လူတစ်ယောက် Join သွားသဖြင့် **{REWARD_PER_REF} ကျပ်** ရရှိပါပြီ!", parse_mode="Markdown")
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Error sending ref message: {e}")
             else:
                 conn.commit()
 
@@ -256,6 +231,7 @@ def show_balance(message):
     cursor.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
+    
     balance = row[0] if row else 0
     bot.send_message(user_id, f"💰 သင့်လက်ရှိ မုန့်ဖိုး လက်ကျန်: **{balance} ကျပ်**", parse_mode="Markdown")
 
@@ -305,7 +281,7 @@ def process_withdraw_request(message, balance):
         bot.send_message(ADMIN_ID, admin_msg, reply_markup=markup, parse_mode="Markdown")
 
 # ==========================================
-# 💳 ADMIN WITHDRAWAL APPROVAL & PROOF SYSTEM
+# 💳 ADMIN WITHDRAWAL APPROVAL & AUTO PROOF PHOTO
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith("wd_"))
 def handle_withdrawal_action(call):
@@ -333,7 +309,7 @@ def handle_withdrawal_action(call):
             bot.send_message(user_id, f"🎉 သင့်ငွေထုတ်ယူမှု **{amount} ကျပ်** အား Admin မှ အတည်ပြုပြီး ငွေလွှဲပေးလိုက်ပါပြီ။")
         except Exception: pass
 
-        # 📢 PROOF CHANNEL သို့ အလိုအလျောက် သက်သေစာ ပို့ပေးခြင်း
+        # 📢 PROOF CHANNEL သို့ ပုံ + စာ အလိုအလျောက် ပို့ပေးခြင်း
         if PROOF_CHANNEL:
             try:
                 u_str = str(user_id)
@@ -342,14 +318,18 @@ def handle_withdrawal_action(call):
                 
                 proof_msg = (
                     f"🎉 **ငွေထုတ်ယူမှု အောင်မြင်ကြောင်း သက်သေ!**\n\n"
-                    f"👤 User: `{masked_id}`\n"
+                    f"👤 User ID: `{masked_id}`\n"
                     f"💰 ထုတ်ယူသည့် ပမာဏ: **{amount} ကျပ်**\n"
                     f"⚡ အခြေအနေ: **လွှဲပြောင်းပြီးပါပြီ (PAID) ✅**\n\n"
                     f"🤖 သင်လည်း မုန့်ဖိုးများ ရှာယူရန် Bot ကို စတင်လိုက်ပါ:\n👉 @{bot_username}"
                 )
-                bot.send_message(PROOF_CHANNEL, proof_msg, parse_mode="Markdown")
+                
+                if PROOF_IMAGE_URL:
+                    bot.send_photo(PROOF_CHANNEL, PROOF_IMAGE_URL, caption=proof_msg, parse_mode="Markdown")
+                else:
+                    bot.send_message(PROOF_CHANNEL, proof_msg, parse_mode="Markdown")
             except Exception as e:
-                print(f"❌ Error posting to Proof Channel: {e}")
+                print(f"❌ Error posting photo to Proof Channel: {e}")
 
     elif action == "rej":
         cursor.execute("UPDATE withdrawals SET status = 'REJECTED' WHERE id = ?", (wd_id,))
@@ -364,12 +344,94 @@ def handle_withdrawal_action(call):
     conn.close()
 
 # ==========================================
-# 👑 ADMIN CONTROL PANEL
+# 👑 UPGRADED ADMIN CONTROL PANEL
 # ==========================================
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if message.from_user.id != ADMIN_ID: return
-    bot.send_message(ADMIN_ID, "👑 **Admin Control Panel**", reply_markup=get_admin_keyboard(), parse_mode="Markdown")
+    bot.send_message(ADMIN_ID, "👑 **Upgraded Admin Control Panel**", reply_markup=get_admin_keyboard(), parse_mode="Markdown")
+
+@bot.message_handler(commands=['setbalance'])
+def set_balance_cmd(message):
+    if message.from_user.id != ADMIN_ID: return
+    args = message.text.split()
+    if len(args) == 3 and args[1].isdigit() and args[2].isdigit():
+        target_id = int(args[1])
+        new_balance = int(args[2])
+        
+        conn = sqlite3.connect("bot_database.db")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET balance = ? WHERE user_id = ?", (new_balance, target_id))
+        conn.commit()
+        conn.close()
+        
+        bot.send_message(ADMIN_ID, f"✅ User `{target_id}` ရဲ့ မုန့်ဖိုးလက်ကျန်ကို **{new_balance} ကျပ်** သို့ ပြောင်းလဲလိုက်ပါပြီ။", parse_mode="Markdown")
+    else:
+        bot.send_message(ADMIN_ID, "⚠️ Format မှားယွင်းနေပါသည်။\nအသုံးပြုပုံ: `/setbalance <User_ID> <Amount>`\nဥပမာ: `/setbalance 123456789 5000`", parse_mode="Markdown")
+
+@bot.message_handler(func=lambda m: m.text == "💰 မုန့်ဖိုး ပြင်ဆင်ရန်")
+def set_balance_prompt(message):
+    if message.from_user.id != ADMIN_ID: return
+    msg = bot.send_message(ADMIN_ID, "💰 မုန့်ဖိုး ပြင်ဆင်ချင်သော `User ID` ကို ရေးပို့ပါ:", parse_mode="Markdown")
+    bot.register_next_step_handler(msg, process_set_balance_user)
+
+def process_set_balance_user(message):
+    if not message.text.isdigit():
+        bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
+        return
+    target_id = int(message.text.strip())
+    msg = bot.send_message(ADMIN_ID, f"ထည့်သွင်းလိုသော မုန့်ဖိုး ပမာဏ (Amount) ကို ရေးပို့ပါ (User ID: `{target_id}`):", parse_mode="Markdown")
+    bot.register_next_step_handler(msg, process_set_balance_amount, target_id)
+
+def process_set_balance_amount(message, target_id):
+    if not message.text.isdigit():
+        bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
+        return
+    new_balance = int(message.text.strip())
+    
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET balance = ? WHERE user_id = ?", (new_balance, target_id))
+    conn.commit()
+    conn.close()
+    
+    bot.send_message(ADMIN_ID, f"✅ User `{target_id}` ၏ မုန့်ဖိုးကို **{new_balance} ကျပ်** သို့ ပြင်ဆင်ပြီးပါပြီ။", parse_mode="Markdown")
+
+@bot.message_handler(func=lambda m: m.text == "🔍 User အကြောင်း စစ်မည်")
+def lookup_user_prompt(message):
+    if message.from_user.id != ADMIN_ID: return
+    msg = bot.send_message(ADMIN_ID, "🔍 စစ်ဆေးချင်သည့် `User ID` ကို ရေးပို့ပါ:", parse_mode="Markdown")
+    bot.register_next_step_handler(msg, process_lookup_user)
+
+def process_lookup_user(message):
+    if not message.text.isdigit():
+        bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
+        return
+    target_id = int(message.text.strip())
+    
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT balance, is_verified, is_banned FROM users WHERE user_id = ?", (target_id,))
+    row = cursor.fetchone()
+    
+    if row:
+        cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by = ?", (target_id,))
+        ref_count = cursor.fetchone()[0]
+        conn.close()
+        
+        status_ban = "🚫 Banned" if row[2] == 1 else "🟢 Active"
+        verified = "✅ Verified" if row[1] == 1 else "❌ Unverified"
+        
+        info = (
+            f"👤 **User Info (#`{target_id}`)**\n\n"
+            f"💰 မုန့်ဖိုး လက်ကျန်: **{row[0]} ကျပ်**\n"
+            f"👥 ခေါ်ထားသော လူဦးရေ: **{ref_count} ယောက်**\n"
+            f"⚡ အခြေအနေ: {verified} | {status_ban}"
+        )
+        bot.send_message(ADMIN_ID, info, parse_mode="Markdown")
+    else:
+        conn.close()
+        bot.send_message(ADMIN_ID, "❌ အဆိုပါ User ရှာမတွေ့ပါ။")
 
 @bot.message_handler(func=lambda m: m.text == "📊 စာရင်းဇယားကြည့်ရန်")
 def show_stats(message):
@@ -446,5 +508,5 @@ def help_msg(message):
 # ==========================================
 if __name__ == "__main__":
     init_db()
-    print("🚀 Full Referral Bot is running...")
+    print("🚀 Fixed & Upgraded Bot is running...")
     bot.infinity_polling()

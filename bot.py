@@ -257,7 +257,7 @@ def check_sub_callback(call):
                 reward = int(get_setting('REWARD_PER_REF', '100'))
                 cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, ref_id))
                 conn.commit()
-                try: bot.send_message(ref_id, f"🎉 သင့် Referral Link မှတစ်ဆင့် လူတစ်ယောက် Join သွားသဖြင့် **{reward} ကျပ်** ရရှိပါပြီ!", parse_mode="Markdown")
+                try: bot.send_message(ref_id, f"🎉 သင့် Referral Link မှတစ်ဆင့် လူတစ်ယောက် Join သွားသဖြင့် <b>{reward} ကျပ်</b> ရရှိပါပြီ!", parse_mode="HTML")
                 except Exception: pass
             else: conn.commit()
         conn.close()
@@ -292,7 +292,7 @@ def claim_daily_bonus(message):
             remaining = datetime.timedelta(seconds=86400 - time_diff.total_seconds())
             hours, remainder = divmod(int(remaining.total_seconds()), 3600)
             minutes, _ = divmod(remainder, 60)
-            bot.send_message(user_id, f"⏳ သင် ဒီနေ့အတွက် Daily Bonus ရယူပြီးပါပြီ!\n\nနောက်တစ်ကြိမ် ယူနိုင်ရန် **{hours} နာရီ {minutes} မိနစ်** လိုပါသေးသည်။")
+            bot.send_message(user_id, f"⏳ သင် ဒီနေ့အတွက် Daily Bonus ရယူပြီးပါပြီ!\n\nနောက်တစ်ကြိမ် ယူနိုင်ရန် <b>{hours} နာရီ {minutes} မိနစ်</b> လိုပါသေးသည်။", parse_mode="HTML")
             conn.close()
             return
 
@@ -300,7 +300,7 @@ def claim_daily_bonus(message):
     conn.commit()
     conn.close()
     
-    bot.send_message(user_id, f"🎉 ယနေ့အတွက် Daily Bonus **{bonus_amount} ကျပ်** လက်ခံရရှိပါပြီ! ✨", parse_mode="Markdown")
+    bot.send_message(user_id, f"🎉 ယနေ့အတွက် Daily Bonus <b>{bonus_amount} ကျပ်</b> လက်ခံရရှိပါပြီ! ✨", parse_mode="HTML")
 
 # ==========================================
 # 🎟️ PROMO CODE SYSTEM
@@ -309,7 +309,7 @@ def claim_daily_bonus(message):
 def promo_code_prompt(message):
     user_id = message.from_user.id
     if is_user_banned(user_id): return
-    msg = bot.send_message(user_id, "🎟️ ကျေးဇူးပြု၍ သင့်ထံတွင်ရှိသော **Promo Code** ကို ရိုက်ထည့်ပေးပါ:", parse_mode="Markdown")
+    msg = bot.send_message(user_id, "🎟️ ကျေးဇူးပြု၍ သင့်ထံတွင်ရှိသော <b>Promo Code</b> ကို ရိုက်ထည့်ပေးပါ:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_promo_code)
 
 def process_promo_code(message):
@@ -350,7 +350,7 @@ def process_promo_code(message):
     conn.commit()
     conn.close()
 
-    bot.send_message(user_id, f"🎉 ဂုဏ်ယူပါတယ်! Promo Code ကြောင့် မုန့်ဖိုး **{reward:,} ကျပ်** ရရှိပါပြီ! ✨", parse_mode="Markdown")
+    bot.send_message(user_id, f"🎉 ဂုဏ်ယူပါတယ်! Promo Code ကြောင့် မုန့်ဖိုး <b>{reward:,} ကျပ်</b> ရရှိပါပြီ! ✨", parse_mode="HTML")
 
 # ==========================================
 # 🏆 LEADERBOARD & 📜 HISTORY
@@ -377,16 +377,16 @@ def show_leaderboard(message):
         bot.send_message(user_id, "🏆 ထိပ်တန်း Ref ခေါ်သူ စာရင်း မရှိသေးပါ။")
         return
 
-    text = "🏆 **Top 10 Referral ခေါ်သူများ စာရင်း** 🏆\n\n"
+    text = "🏆 <b>Top 10 Referral ခေါ်သူများ စာရင်း</b> 🏆\n\n"
     badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     
     for idx, (ref_id, count) in enumerate(top_users):
         u_str = str(ref_id)
         masked_id = u_str[:4] + "****" if len(u_str) > 4 else u_str
         badge = badges[idx] if idx < len(badges) else "🔹"
-        text += f"{badge} User ID: `{masked_id}` — **{count} ယောက်**\n"
+        text += f"{badge} User ID: <code>{masked_id}</code> — <b>{count} ယောက်</b>\n"
 
-    bot.send_message(user_id, text, parse_mode="Markdown")
+    bot.send_message(user_id, text, parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "📜 ငွေထုတ်မှတ်တမ်း")
 def show_history(message):
@@ -403,15 +403,15 @@ def show_history(message):
         bot.send_message(user_id, "📜 သင့်တွင် ငွေထုတ်ယူခဲ့သည့် မှတ်တမ်း မရှိသေးပါ။")
         return
 
-    text = "📜 **သင့်၏ နောက်ဆုံး ငွေထုတ်ယူမှု မှတ်တမ်း (၅) ခု:**\n\n"
+    text = "📜 <b>သင့်၏ နောက်ဆုံး ငွေထုတ်ယူမှု မှတ်တမ်း (၅) ခု:</b>\n\n"
     for amount, info, date_str in rows:
         d = date_str if date_str else "N/A"
-        text += f"💰 ပမာဏ: **{amount:,} ကျပ်**\n💳 အကောင့်: `{info}`\n📅 အချိန်: {d}\n⚡ အခြေအနေ: **PAID ✅**\n━━━━━━━━━━━━━━━━━━━━\n"
+        text += f"💰 ပမာဏ: <b>{amount:,} ကျပ်</b>\n💳 အကောင့်: <code>{info}</code>\n📅 အချိန်: {d}\n⚡ အခြေအနေ: <b>PAID ✅</b>\n━━━━━━━━━━━━━━━━━━━━\n"
 
-    bot.send_message(user_id, text, parse_mode="Markdown")
+    bot.send_message(user_id, text, parse_mode="HTML")
 
 # ==========================================
-# 💸 WITHDRAWAL SYSTEM & AUTO-POST
+# 💸 WITHDRAWAL SYSTEM & AUTO-POST (HTML)
 # ==========================================
 @bot.message_handler(func=lambda m: m.text == "💸 ငွေထုတ်မည်")
 def request_withdraw(message):
@@ -422,7 +422,7 @@ def request_withdraw(message):
     min_withdraw = int(get_setting('MIN_WITHDRAW', '5000'))
     
     if balance < min_withdraw:
-        bot.send_message(user_id, f"⚠️ အနည်းဆုံး **{min_withdraw:,} ကျပ်** ပြည့်မှ ငွေထုတ်ယူနိုင်ပါမည်။\nသင့်လက်ရှိ မုန့်ဖိုး လက်ကျန်: **{balance:,} ကျပ်**", parse_mode="Markdown")
+        bot.send_message(user_id, f"⚠️ အနည်းဆုံး <b>{min_withdraw:,} ကျပ်</b> ပြည့်မှ ငွေထုတ်ယူနိုင်ပါမည်။\nသင့်လက်ရှိ မုန့်ဖိုး လက်ကျန်: <b>{balance:,} ကျပ်</b>", parse_mode="HTML")
         return
 
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -430,7 +430,7 @@ def request_withdraw(message):
     btn_wave = types.InlineKeyboardButton("📱 WavePay", callback_data="pay_WavePay")
     markup.add(btn_kpay, btn_wave)
     
-    bot.send_message(user_id, f"💳 **ငွေထုတ်ယူမည့် Payment Method ကို ရွေးချယ်ပါ:**\n\n💰 သင့်လက်ကျန်: **{balance:,} ကျပ်**", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(user_id, f"💳 <b>ငွေထုတ်ယူမည့် Payment Method ကို ရွေးချယ်ပါ:</b>\n\n💰 သင့်လက်ကျန်: <b>{balance:,} ကျပ်</b>", reply_markup=markup, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pay_"))
 def select_payment_method(call):
@@ -440,10 +440,10 @@ def select_payment_method(call):
     
     msg = bot.send_message(
         user_id, 
-        f"📱 ရွေးချယ်ထားသော စနစ်: **{method}**\n\n"
-        f"ကျေးဇူးပြု၍ ငွေထုတ်ယူမည့် **{method} အကောင့်အမည်** နှင့် **ဖုန်းနံပါတ်** ကို ရေးပို့ပေးပါ:\n\n"
-        f"💡 **E.g. (ဥပမာ) -** `U Aung Aung - 09123456789`",
-        parse_mode="Markdown"
+        f"📱 ရွေးချယ်ထားသော စနစ်: <b>{method}</b>\n\n"
+        f"ကျေးဇူးပြု၍ ငွေထုတ်ယူမည့် <b>{method} အကောင့်အမည်</b> နှင့် <b>ဖုန်းနံပါတ်</b> ကို ရေးပို့ပေးပါ:\n\n"
+        f"💡 <b>E.g. (ဥပမာ) -</b> <code>U Aung Aung - 09123456789</code>",
+        parse_mode="HTML"
     )
     bot.register_next_step_handler(msg, process_account_info, method)
 
@@ -456,9 +456,9 @@ def process_account_info(message, method):
     
     msg = bot.send_message(
         user_id,
-        f"💰 ထုတ်ယူလိုသည့် **မုန့်ဖိုး ပမာဏ (Amount)** ကို ဂဏန်းသီးသန့် ရိုက်ထည့်ပေးပါ:\n"
-        f"(အနည်းဆုံး: **{min_withdraw:,} ကျပ်** | သင့်လက်ကျန်: **{balance:,} ကျပ်**)",
-        parse_mode="Markdown"
+        f"💰 ထုတ်ယူလိုသည့် <b>မုန့်ဖိုး ပမာဏ (Amount)</b> ကို ဂဏန်းသီးသန့် ရိုက်ထည့်ပေးပါ:\n"
+        f"(အနည်းဆုံး: <b>{min_withdraw:,} ကျပ်</b> | သင့်လက်ကျန်: <b>{balance:,} ကျပ်</b>)",
+        parse_mode="HTML"
     )
     bot.register_next_step_handler(msg, process_withdraw_amount, method, account_info)
 
@@ -474,11 +474,11 @@ def process_withdraw_amount(message, method, account_info):
     min_withdraw = int(get_setting('MIN_WITHDRAW', '5000'))
     
     if amount < min_withdraw:
-        bot.send_message(user_id, f"❌ ထုတ်ယူလိုသည့် ပမာဏသည် အနည်းဆုံး **{min_withdraw:,} ကျပ်** ရှိရပါမည်။", parse_mode="Markdown")
+        bot.send_message(user_id, f"❌ ထုတ်ယူလိုသည့် ပမာဏသည် အနည်းဆုံး <b>{min_withdraw:,} ကျပ်</b> ရှိရပါမည်။", parse_mode="HTML")
         return
         
     if amount > balance:
-        bot.send_message(user_id, f"❌ သင့် မုန့်ဖိုး လက်ကျန် (**{balance:,} ကျပ်**) ထက် ပိုထုတ်၍ မရပါ။", parse_mode="Markdown")
+        bot.send_message(user_id, f"❌ သင့် မုန့်ဖိုး လက်ကျန် (<b>{balance:,} ကျပ်</b>) ထက် ပိုထုတ်၍ မရပါ။", parse_mode="HTML")
         return
         
     date_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -490,17 +490,18 @@ def process_withdraw_amount(message, method, account_info):
     conn.commit()
     conn.close()
     
+    # 1. User သို့ အကြောင်းကြားခြင်း
     bot.send_message(
         user_id, 
-        f"✅ **ငွေထုတ်ယူမှု တောင်းဆိုပြီးပါပြီ!**\n\n"
-        f"💰 ထုတ်ယူသည့် ပမာဏ: **{amount:,} ကျပ်**\n"
-        f"📱 ငွေလွှဲစနစ်: **{method}**\n"
-        f"💳 အကောင့်အချက်အလက်: `{account_info}`\n\n"
+        f"✅ <b>ငွေထုတ်ယူမှု တောင်းဆိုပြီးပါပြီ!</b>\n\n"
+        f"💰 ထုတ်ယူသည့် ပမာဏ: <b>{amount:,} ကျပ်</b>\n"
+        f"📱 ငွေလွှဲစနစ်: <b>{method}</b>\n"
+        f"💳 အကောင့်အချက်အလက်: <code>{account_info}</code>\n\n"
         f"📢 Proof Channel တွင် သွားရောက် စစ်ဆေးနိုင်ပါသည်။", 
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     
-    # Proof Channel Post
+    # 2. Proof Channel မက်ဆေ့ခ်ျ ပြင်ဆင်ခြင်း (HTML Mode သုံးထားသဖြင့် Error မတက်ပါ)
     raw_proof_ch = get_setting('PROOF_CHANNEL', '@daily_cashmmproof')
     proof_channel = clean_channel_username(raw_proof_ch) or raw_proof_ch
     proof_img = get_setting('PROOF_IMAGE_URL', '')
@@ -508,45 +509,49 @@ def process_withdraw_amount(message, method, account_info):
     u_str = str(user_id)
     masked_id = u_str[:4] + "****" if len(u_str) > 4 else u_str
     
-    try: bot_username = bot.get_me().username
-    except Exception: bot_username = "Bot"
+    try:
+        bot_username = bot.get_me().username
+    except Exception:
+        bot_username = "Bot"
     
     proof_msg = (
-        f"🚀 **မုန့်ဖိုး လွှဲပြောင်းပေးမှု အောင်မြင်ပါပြီ!**\n\n"
-        f"👤 **User ID:** `{masked_id}`\n"
-        f"💰 **ထုတ်ယူသည့် မုန့်ဖိုး:** **{amount:,} ကျပ်**\n"
-        f"💳 **ငွေလွှဲစနစ်:** **{method}**\n"
-        f"⚡ **အခြေအနေ:** **ငွေလွှဲပြီးပါပြီ (PAID) ✅**\n"
+        f"🚀 <b>မုန့်ဖိုး လွှဲပြောင်းပေးမှု အောင်မြင်ပါပြီ!</b>\n\n"
+        f"👤 <b>User ID:</b> <code>{masked_id}</code>\n"
+        f"💰 <b>ထုတ်ယူသည့် မုန့်ဖိုး:</b> <b>{amount:,} ကျပ်</b>\n"
+        f"💳 <b>ငွေလွှဲစနစ်:</b> <b>{method}</b>\n"
+        f"⚡ <b>အခြေအနေ:</b> <b>ငွေလွှဲပြီးပါပြီ (PAID) ✅</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🎁 **လူတိုင်း နေ့စဉ် မုန့်ဖိုး အလွယ်တကူ ရှာယူနိုင်ပါပြီ!**\n\n"
-        f"🤖 **မုန့်ဖိုး သွားရောက်ထုတ်ယူရန် Bot Link:**\n"
+        f"🎁 <b>လူတိုင်း နေ့စဉ် မုန့်ဖိုး အလွယ်တကူ ရှာယူနိုင်ပါပြီ!</b>\n\n"
+        f"🤖 <b>မုန့်ဖိုး သွားရောက်ထုတ်ယူရန် Bot Link:</b>\n"
         f"👉 @{bot_username}"
     )
     
+    # 3. Proof Channel သို့ တိုက်ရိုက် Post တင်ခြင်း
     posted_successfully = False
     error_reason = ""
     
     try:
         if proof_img:
             try:
-                bot.send_photo(proof_channel, proof_img, caption=proof_msg, parse_mode="Markdown")
+                bot.send_photo(proof_channel, proof_img, caption=proof_msg, parse_mode="HTML")
                 posted_successfully = True
-            except Exception:
-                bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
+            except Exception as photo_err:
+                bot.send_message(proof_channel, proof_msg, parse_mode="HTML")
                 posted_successfully = True
         else:
-            bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
+            bot.send_message(proof_channel, proof_msg, parse_mode="HTML")
             posted_successfully = True
     except Exception as e:
         error_reason = str(e)
 
+    # 4. တင်မရပါက Admin ဆီသို့ Error ပို့ခြင်း
     if not posted_successfully and ADMIN_ID != 0:
         bot.send_message(
             ADMIN_ID, 
-            f"⚠️ **Proof Channel သို့ Auto-Post မတင်နိုင်ပါ!**\n\n"
-            f"📍 Channel: `{proof_channel}`\n"
-            f"❌ Error: `{error_reason}`",
-            parse_mode="Markdown"
+            f"⚠️ <b>Proof Channel သို့ Auto-Post မတင်နိုင်ပါ!</b>\n\n"
+            f"📍 Channel: <code>{proof_channel}</code>\n"
+            f"❌ Error အကြောင်းရင်း: <code>{error_reason}</code>",
+            parse_mode="HTML"
         )
 
 # ==========================================
@@ -564,17 +569,17 @@ def show_ref_link(message):
     ref_link = f"https://t.me/{bot_username}?start={user_id}"
     reward = get_setting('REWARD_PER_REF', '100')
     msg = (
-        f"🔗 **သင့်ရဲ့ သီးသန့် Referral Link:**\n`{ref_link}`\n\n"
-        f"🎁 ဒီ Link ကို သူငယ်ချင်းတွေဆီ ပို့ပေးပါ။ လူတစ်ယောက် Join တိုင်း **{reward} ကျပ်** ရရှိပါမည်။"
+        f"🔗 <b>သင့်ရဲ့ သီးသန့် Referral Link:</b>\n<code>{ref_link}</code>\n\n"
+        f"🎁 ဒီ Link ကို သူငယ်ချင်းတွေဆီ ပို့ပေးပါ။ လူတစ်ယောက် Join တိုင်း <b>{reward} ကျပ်</b> ရရှိပါမည်။"
     )
-    bot.send_message(user_id, msg, parse_mode="Markdown")
+    bot.send_message(user_id, msg, parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "💰 မုန့်ဖိုး လက်ကျန်")
 def show_balance(message):
     user_id = message.from_user.id
     if is_user_banned(user_id): return
     balance = get_user_balance(user_id)
-    bot.send_message(user_id, f"💰 သင့်လက်ရှိ မုန့်ဖိုး လက်ကျန်: **{balance:,} ကျပ်**", parse_mode="Markdown")
+    bot.send_message(user_id, f"💰 သင့်လက်ရှိ မုန့်ဖိုး လက်ကျန်: <b>{balance:,} ကျပ်</b>", parse_mode="HTML")
 
 # ==========================================
 # 👑 ADMIN PANEL & PROMO CODE CREATION
@@ -582,12 +587,12 @@ def show_balance(message):
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if message.from_user.id != ADMIN_ID: return
-    bot.send_message(ADMIN_ID, "👑 **Admin Control Panel**", reply_markup=get_admin_keyboard(), parse_mode="Markdown")
+    bot.send_message(ADMIN_ID, "👑 <b>Admin Control Panel</b>", reply_markup=get_admin_keyboard(), parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "🎟️ Promo Code သစ်လုပ်ရန်")
 def create_promo_prompt(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "🎟️ ပြုလုပ်ချင်သော **Promo Code နာမည်** ကို ရေးပို့ပါ (ဥပမာ- `LUCKY100`):", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, "🎟️ ပြုလုပ်ချင်သော <b>Promo Code နာမည်</b> ကို ရေးပို့ပါ (ဥပမာ- <code>LUCKY100</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_promo_name)
 
 def process_promo_name(message):
@@ -595,7 +600,7 @@ def process_promo_name(message):
     if not code:
         bot.send_message(ADMIN_ID, "❌ Code မမှန်ပါ။")
         return
-    msg = bot.send_message(ADMIN_ID, f"💰 Code: `{code}` အတွက် **ပေးမည့် မုန့်ဖိုး ပမာဏ** ရေးပို့ပါ (ဥပမာ - `100`):", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, f"💰 Code: <code>{code}</code> အတွက် <b>ပေးမည့် မုန့်ဖိုး ပမာဏ</b> ရေးပို့ပါ (ဥပမာ - <code>100</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_promo_reward, code)
 
 def process_promo_reward(message, code):
@@ -603,7 +608,7 @@ def process_promo_reward(message, code):
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
         return
     reward = int(message.text.strip())
-    msg = bot.send_message(ADMIN_ID, f"👥 ဒီ Code ကို **လူဦးရေ မည်မျှ ရယူနိုင်မလဲ** ရေးပို့ပါ (ဥပမာ - `50`):", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, f"👥 ဒီ Code ကို <b>လူဦးရေ မည်မျှ ရယူနိုင်မလဲ</b> ရေးပို့ပါ (ဥပမာ - <code>50</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_promo_limit, code, reward)
 
 def process_promo_limit(message, code, reward):
@@ -620,11 +625,11 @@ def process_promo_limit(message, code, reward):
 
     bot.send_message(
         ADMIN_ID, 
-        f"✅ **Promo Code အသစ် ဖန်တီးပြီးပါပြီ!** 🎉\n\n"
-        f"🎟️ Code: `{code}`\n"
-        f"💰 မုန့်ဖိုး: **{reward:,} ကျပ်**\n"
-        f"👥 ကန့်သတ်ချက်: **{limit} ယောက်**",
-        parse_mode="Markdown",
+        f"✅ <b>Promo Code အသစ် ဖန်တီးပြီးပါပြီ!</b> 🎉\n\n"
+        f"🎟️ Code: <code>{code}</code>\n"
+        f"💰 မုန့်ဖိုး: <b>{reward:,} ကျပ်</b>\n"
+        f"👥 ကန့်သတ်ချက်: <b>{limit} ယောက်</b>",
+        parse_mode="HTML",
         reply_markup=get_admin_keyboard()
     )
 
@@ -640,14 +645,14 @@ def bot_settings_menu(message):
     current_proof_img = get_setting('PROOF_IMAGE_URL', '')
     
     msg = (
-        f"⚙️ **လက်ရှိ Bot Settings များ:**\n\n"
-        f"🎁 **Ref Reward:** {current_reward} ကျပ်\n"
-        f"📅 **Daily Bonus:** {current_daily} ကျပ်\n"
-        f"💸 **Min Withdraw:** {current_min} ကျပ်\n"
-        f"📢 **Channels:** `{current_channels}`\n"
-        f"🖼️ **Proof Image Status:** {'✅ ပုံ သတ်မှတ်ပြီးပါပြီ' if current_proof_img else '❌ မသတ်မှတ်ရသေးပါ'}"
+        f"⚙️ <b>လက်ရှိ Bot Settings များ:</b>\n\n"
+        f"🎁 <b>Ref Reward:</b> {current_reward} ကျပ်\n"
+        f"📅 <b>Daily Bonus:</b> {current_daily} ကျပ်\n"
+        f"💸 <b>Min Withdraw:</b> {current_min} ကျပ်\n"
+        f"📢 <b>Channels:</b> <code>{current_channels}</code>\n"
+        f"🖼️ <b>Proof Image Status:</b> {'✅ ပုံ သတ်မှတ်ပြီးပါပြီ' if current_proof_img else '❌ မသတ်မှတ်ရသေးပါ'}"
     )
-    bot.send_message(ADMIN_ID, msg, reply_markup=get_settings_keyboard(), parse_mode="Markdown")
+    bot.send_message(ADMIN_ID, msg, reply_markup=get_settings_keyboard(), parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "📅 Daily Bonus ပြင်ရန်")
 def edit_daily_bonus(message):
@@ -658,7 +663,7 @@ def edit_daily_bonus(message):
 def save_daily_bonus(message):
     if message.text and message.text.strip().isdigit():
         set_setting('DAILY_BONUS', message.text.strip())
-        bot.send_message(ADMIN_ID, f"✅ Daily Bonus ကို **{message.text.strip()} ကျပ်** သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard())
+        bot.send_message(ADMIN_ID, f"✅ Daily Bonus ကို <b>{message.text.strip()} ကျပ်</b> သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard(), parse_mode="HTML")
     else:
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့်သာ ရေးပို့ပါ။")
 
@@ -671,7 +676,7 @@ def edit_ref_reward(message):
 def save_ref_reward(message):
     if message.text and message.text.strip().isdigit():
         set_setting('REWARD_PER_REF', message.text.strip())
-        bot.send_message(ADMIN_ID, f"✅ Ref Reward ကို **{message.text.strip()} ကျပ်** သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard())
+        bot.send_message(ADMIN_ID, f"✅ Ref Reward ကို <b>{message.text.strip()} ကျပ်</b> သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard(), parse_mode="HTML")
     else:
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့်သာ ရေးပို့ပါ။")
 
@@ -684,7 +689,7 @@ def edit_min_withdraw(message):
 def save_min_withdraw(message):
     if message.text and message.text.strip().isdigit():
         set_setting('MIN_WITHDRAW', message.text.strip())
-        bot.send_message(ADMIN_ID, f"✅ Min Withdraw ကို **{message.text.strip()} ကျပ်** သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard())
+        bot.send_message(ADMIN_ID, f"✅ Min Withdraw ကို <b>{message.text.strip()} ကျပ်</b> သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard(), parse_mode="HTML")
     else:
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့်သာ ရေးပို့ပါ။")
 
@@ -697,19 +702,19 @@ def edit_channels(message):
 def save_channels(message):
     if message.text:
         set_setting('CHANNELS', message.text.strip())
-        bot.send_message(ADMIN_ID, f"✅ Channel များကို ပြောင်းလဲပြီးပါပြီ:\n`{message.text.strip()}`", parse_mode="Markdown", reply_markup=get_settings_keyboard())
+        bot.send_message(ADMIN_ID, f"✅ Channel များကို ပြောင်းလဲပြီးပါပြီ:\n<code>{message.text.strip()}</code>", parse_mode="HTML", reply_markup=get_settings_keyboard())
 
 @bot.message_handler(func=lambda m: m.text == "🖼️ Proof Image URL ပြင်ရန်")
 def edit_proof_img(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "🖼️ Proof Channel တွင် တင်မည့် **ပုံကို Bot ထဲသို့ တိုက်ရိုက် Send (Photo) ပို့ပေးပါ**:", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, "🖼️ Proof Channel တွင် တင်မည့် <b>ပုံကို Bot ထဲသို့ တိုက်ရိုက် Send (Photo) ပို့ပေးပါ</b>:", parse_mode="HTML")
     bot.register_next_step_handler(msg, save_proof_img)
 
 def save_proof_img(message):
     if message.photo:
         file_id = message.photo[-1].file_id
         set_setting('PROOF_IMAGE_URL', file_id)
-        bot.send_message(ADMIN_ID, "✅ Proof Image ကို Bot ထဲတွင် **တိုက်ရိုက် သိမ်းဆည်းလိုက်ပါပြီ!** ✨", reply_markup=get_settings_keyboard(), parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, "✅ Proof Image ကို Bot ထဲတွင် <b>တိုက်ရိုက် သိမ်းဆည်းလိုက်ပါပြီ!</b> ✨", reply_markup=get_settings_keyboard(), parse_mode="HTML")
     elif message.text:
         set_setting('PROOF_IMAGE_URL', message.text.strip())
         bot.send_message(ADMIN_ID, "✅ Proof Image URL ကို ပြောင်းလဲပြီးပါပြီ။", reply_markup=get_settings_keyboard())
@@ -725,7 +730,7 @@ def back_to_admin(message):
 @bot.message_handler(func=lambda m: m.text == "💰 User မုန့်ဖိုး ပြင်ရန်")
 def set_balance_prompt(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "💰 မုန့်ဖိုး ပြင်ဆင်ချင်သော `User ID` ကို ရေးပို့ပါ:", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, "💰 မုန့်ဖိုး ပြင်ဆင်ချင်သော <code>User ID</code> ကို ရေးပို့ပါ:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_set_balance_user)
 
 def process_set_balance_user(message):
@@ -733,7 +738,7 @@ def process_set_balance_user(message):
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
         return
     target_id = int(message.text.strip())
-    msg = bot.send_message(ADMIN_ID, f"ထည့်သွင်းလိုသော မုန့်ဖိုး ပမာဏ ကို ရေးပို့ပါ (User ID: `{target_id}`):", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, f"ထည့်သွင်းလိုသော မုန့်ဖိုး ပမာဏ ကို ရေးပို့ပါ (User ID: <code>{target_id}</code>):", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_set_balance_amount, target_id)
 
 def process_set_balance_amount(message, target_id):
@@ -748,12 +753,12 @@ def process_set_balance_amount(message, target_id):
     conn.commit()
     conn.close()
     
-    bot.send_message(ADMIN_ID, f"✅ User `{target_id}` ၏ မုန့်ဖိုးကို **{new_balance:,} ကျပ်** သို့ ပြင်ဆင်ပြီးပါပြီ။", parse_mode="Markdown")
+    bot.send_message(ADMIN_ID, f"✅ User <code>{target_id}</code> ၏ မုန့်ဖိုးကို <b>{new_balance:,} ကျပ်</b> သို့ ပြင်ဆင်ပြီးပါပြီ။", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "🔍 User စစ်မည်")
 def lookup_user_prompt(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "🔍 စစ်ဆေးချင်သည့် `User ID` ကို ရေးပို့ပါ:", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, "🔍 စစ်ဆေးချင်သည့် <code>User ID</code> ကို ရေးပို့ပါ:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_lookup_user)
 
 def process_lookup_user(message):
@@ -776,12 +781,12 @@ def process_lookup_user(message):
         verified = "✅ Verified" if row[1] == 1 else "❌ Unverified"
         
         info = (
-            f"👤 **User Info (#`{target_id}`)**\n\n"
-            f"💰 မုန့်ဖိုး လက်ကျန်: **{row[0]:,} ကျပ်**\n"
-            f"👥 ခေါ်ထားသော လူဦးရေ: **{ref_count} ယောက်**\n"
+            f"👤 <b>User Info (#<code>{target_id}</code>)</b>\n\n"
+            f"💰 မုန့်ဖိုး လက်ကျန်: <b>{row[0]:,} ကျပ်</b>\n"
+            f"👥 ခေါ်ထားသော လူဦးရေ: <b>{ref_count} ယောက်</b>\n"
             f"⚡ အခြေအနေ: {verified} | {status_ban}"
         )
-        bot.send_message(ADMIN_ID, info, parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, info, parse_mode="HTML")
     else:
         conn.close()
         bot.send_message(ADMIN_ID, "❌ အဆိုပါ User ရှာမတွေ့ပါ။")
@@ -797,7 +802,7 @@ def show_stats(message):
     total_balance = cursor.fetchone()[0] or 0
     conn.close()
 
-    bot.send_message(ADMIN_ID, f"📊 **Bot Stats**\n\n👥 စုစုပေါင်း User: **{total_users}**\n💰 ပေးရန်ကျန် မုန့်ဖိုး: **{total_balance:,} ကျပ်**", parse_mode="Markdown")
+    bot.send_message(ADMIN_ID, f"📊 <b>Bot Stats</b>\n\n👥 စုစုပေါင်း User: <b>{total_users}</b>\n💰 ပေးရန်ကျန် မုန့်ဖိုး: <b>{total_balance:,} ကျပ်</b>", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.text == "📢 Broadcast စာပို့မည်")
 def broadcast_start(message):
@@ -825,7 +830,7 @@ def send_broadcast(message):
 @bot.message_handler(func=lambda m: m.text == "🚫 User Ban/Unban")
 def ban_prompt(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "🚫 Ban သို့မဟုတ် Unban လုပ်ချင်သည့် `User_ID` ကို ရေးပို့ပါ:", parse_mode="Markdown")
+    msg = bot.send_message(ADMIN_ID, "🚫 Ban သို့မဟုတ် Unban လုပ်ချင်သည့် <code>User_ID</code> ကို ရေးပို့ပါ:", parse_mode="HTML")
     bot.register_next_step_handler(msg, process_ban_unban)
 
 def process_ban_unban(message):
@@ -841,7 +846,7 @@ def process_ban_unban(message):
             cursor.execute("UPDATE users SET is_banned = ? WHERE user_id = ?", (new_status, target_id))
             conn.commit()
             status_str = "Unban လုပ်ပြီးပါပြီ ✅" if new_status == 0 else "Ban လိုက်ပါပြီ 🚫"
-            bot.send_message(ADMIN_ID, f"User `{target_id}` ကို {status_str}", parse_mode="Markdown")
+            bot.send_message(ADMIN_ID, f"User <code>{target_id}</code> ကို {status_str}", parse_mode="HTML")
         else:
             bot.send_message(ADMIN_ID, "❌ User ရှာမတွေ့ပါ။")
         conn.close()

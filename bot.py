@@ -9,8 +9,8 @@ from telebot import types
 # ==========================================
 TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 
-# Channel များကို Comma (,) ခြားပြီး ထည့်ပါ (ဥပမာ - "@channel1,@channel2")
-CHANNELS_RAW = os.environ.get("CHANNELS", "@channel1,@channel2")
+# Channel များကို Comma (,) ခြားပြီး ထည့်ပါ (ဥပမာ - "@channel1,@channel2,@channel3,@channel4")
+CHANNELS_RAW = os.environ.get("CHANNELS", "@channel1,@channel2,@channel3,@channel4")
 CHANNELS = [ch.strip() for ch in CHANNELS_RAW.split(",") if ch.strip()]
 
 # Proof Channel (ငွေလွှဲပြေစာ သက်သေပြရန် Channel)
@@ -18,7 +18,9 @@ PROOF_CHANNEL = os.environ.get("PROOF_CHANNEL", "")  # ဥပမာ - "@my_proof
 
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))
 REWARD_PER_REF = int(os.environ.get("REWARD_PER_REF", "100"))
-MIN_WITHDRAW = int(os.environ.get("MIN_WITHDRAW", "1000"))
+
+# အနည်းဆုံး ငွေထုတ်ယူနိုင်သည့် ပမာဏ (5000 ကျပ်)
+MIN_WITHDRAW = int(os.environ.get("MIN_WITHDRAW", "5000"))
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -66,20 +68,41 @@ def is_user_banned(user_id):
 def get_unsubscribed_channels(user_id):
     unsub_list = []
     for ch in CHANNELS:
+        ch_target = ch.strip()
+        if not ch_target:
+            continue
+            
+        # Channel Link များ/Username များကို စနစ်တကျ ခွဲထုတ်ခြင်း
+        if "t.me/" in ch_target:
+            if not "+" in ch_target and not "joinchat" in ch_target:
+                ch_target = "@" + ch_target.split("t.me/")[-1].replace("+", "").strip()
+        elif not ch_target.startswith("@") and not ch_target.startswith("-100"):
+            ch_target = "@" + ch_target
+
         try:
-            member = bot.get_chat_member(ch, user_id)
+            member = bot.get_chat_member(ch_target, user_id)
             if member.status not in ['member', 'administrator', 'creator']:
                 unsub_list.append(ch)
         except Exception as e:
-            print(f"❌ Error checking channel {ch}: {e}")
+            print(f"❌ Error checking channel '{ch_target}': {e}")
             unsub_list.append(ch)
+            
     return unsub_list
 
 def get_channels_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     for index, ch in enumerate(CHANNELS, 1):
-        clean_username = ch.replace('@', '')
-        btn = types.InlineKeyboardButton(f"📢 Join Channel {index} ({ch})", url=f"https://t.me/{clean_username}")
+        ch_clean = ch.strip()
+        
+        # Link ဖန်တီးခြင်း
+        if ch_clean.startswith("http://") or ch_clean.startswith("https://"):
+            url = ch_clean
+        elif ch_clean.startswith("@"):
+            url = f"https://t.me/{ch_clean[1:]}"
+        else:
+            url = f"https://t.me/{ch_clean}"
+            
+        btn = types.InlineKeyboardButton(f"📢 Join Channel {index}", url=url)
         markup.add(btn)
     
     btn_check = types.InlineKeyboardButton("အတည်ပြုမည် ✅", callback_data="check_sub")
@@ -152,7 +175,9 @@ def process_captcha(message):
     try:
         user_ans = int(message.text.strip())
         if user_ans == correct_ans:
-            del captcha_store[user_id]
+            if user_id in captcha_store:
+                del captcha_store[user_id]
+                
             unsubscribed = get_unsubscribed_channels(user_id)
             if unsubscribed:
                 bot.send_message(

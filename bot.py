@@ -53,7 +53,7 @@ def init_db():
         )
     ''')
     
-    # Promo Claims Table (To prevent duplicate claims)
+    # Promo Claims Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promo_claims (
             code TEXT,
@@ -288,7 +288,7 @@ def claim_daily_bonus(message):
     if row and row[0]:
         last_claim = datetime.datetime.fromisoformat(row[0])
         time_diff = now - last_claim
-        if time_diff.total_seconds() < 86400:  # 24 Hours = 86400 seconds
+        if time_diff.total_seconds() < 86400:
             remaining = datetime.timedelta(seconds=86400 - time_diff.total_seconds())
             hours, remainder = divmod(int(remaining.total_seconds()), 3600)
             minutes, _ = divmod(remainder, 60)
@@ -344,7 +344,6 @@ def process_promo_code(message):
         conn.close()
         return
 
-    # Grant Reward
     cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, user_id))
     cursor.execute("UPDATE promo_codes SET claimed_count = claimed_count + 1 WHERE code = ?", (code,))
     cursor.execute("INSERT INTO promo_claims (code, user_id) VALUES (?, ?)", (code, user_id))
@@ -412,7 +411,7 @@ def show_history(message):
     bot.send_message(user_id, text, parse_mode="Markdown")
 
 # ==========================================
-# 💸 WITHDRAWAL SYSTEM
+# 💸 WITHDRAWAL SYSTEM & AUTO-POST
 # ==========================================
 @bot.message_handler(func=lambda m: m.text == "💸 ငွေထုတ်မည်")
 def request_withdraw(message):
@@ -501,13 +500,16 @@ def process_withdraw_amount(message, method, account_info):
         parse_mode="Markdown"
     )
     
-    # Auto Post to Proof Channel
-    proof_channel = get_setting('PROOF_CHANNEL', '@daily_cashmmproof')
+    # Proof Channel Post
+    raw_proof_ch = get_setting('PROOF_CHANNEL', '@daily_cashmmproof')
+    proof_channel = clean_channel_username(raw_proof_ch) or raw_proof_ch
     proof_img = get_setting('PROOF_IMAGE_URL', '')
     
     u_str = str(user_id)
     masked_id = u_str[:4] + "****" if len(u_str) > 4 else u_str
-    bot_username = bot.get_me().username
+    
+    try: bot_username = bot.get_me().username
+    except Exception: bot_username = "Bot"
     
     proof_msg = (
         f"🚀 **မုန့်ဖိုး လွှဲပြောင်းပေးမှု အောင်မြင်ပါပြီ!**\n\n"
@@ -521,14 +523,31 @@ def process_withdraw_amount(message, method, account_info):
         f"👉 @{bot_username}"
     )
     
+    posted_successfully = False
+    error_reason = ""
+    
     try:
         if proof_img:
-            try: bot.send_photo(proof_channel, proof_img, caption=proof_msg, parse_mode="Markdown")
-            except Exception: bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
+            try:
+                bot.send_photo(proof_channel, proof_img, caption=proof_msg, parse_mode="Markdown")
+                posted_successfully = True
+            except Exception:
+                bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
+                posted_successfully = True
         else:
             bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
+            posted_successfully = True
     except Exception as e:
-        print(f"❌ Proof Channel Posting Error: {e}")
+        error_reason = str(e)
+
+    if not posted_successfully and ADMIN_ID != 0:
+        bot.send_message(
+            ADMIN_ID, 
+            f"⚠️ **Proof Channel သို့ Auto-Post မတင်နိုင်ပါ!**\n\n"
+            f"📍 Channel: `{proof_channel}`\n"
+            f"❌ Error: `{error_reason}`",
+            parse_mode="Markdown"
+        )
 
 # ==========================================
 # 👤 USER FEATURES
@@ -842,5 +861,5 @@ def help_msg(message):
 # ==========================================
 if __name__ == "__main__":
     init_db()
-    print("🚀 All-in-One Daily Cash Bot is running...")
+    print("🚀 Bot is running successfully...")
     bot.infinity_polling()

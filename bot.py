@@ -42,16 +42,22 @@ def init_db():
         )
     ''')
     
-    # Dynamic Settings Default သတ်မှတ်ခြင်း
+    # Default Settings သတ်မှတ်ခြင်း (@daily_cashmmproof ကို Default ထားပေးထားသည်)
     defaults = {
         'REWARD_PER_REF': '100',
         'MIN_WITHDRAW': '5000',
-        'CHANNELS': '@channel1,@channel2',
+        'CHANNELS': '@daily_cashmmproof',
         'PROOF_CHANNEL': '@daily_cashmmproof',
         'PROOF_IMAGE_URL': 'https://i.ibb.co/3s3KqV7/reward-logo.png'
     }
     for k, v in defaults.items():
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+        
+    # Database အဟောင်းထဲရှိ @channel1 အမှားများကို Auto ပြင်ဆင်ခြင်း
+    cursor.execute("SELECT value FROM settings WHERE key = 'CHANNELS'")
+    row = cursor.fetchone()
+    if row and ("@channel1" in row[0] or "channel1" in row[0]):
+        cursor.execute("UPDATE settings SET value = ? WHERE key = 'CHANNELS'", ('@daily_cashmmproof',))
         
     conn.commit()
     conn.close()
@@ -72,8 +78,27 @@ def set_setting(key, value):
     conn.close()
 
 # ==========================================
-# 🛠️ HELPER FUNCTIONS
+# 🛠️ HELPER FUNCTIONS (FIXED CHANNEL PARSER)
 # ==========================================
+def clean_channel_username(ch):
+    """Channel Input များကို Telegram API စစ်ဆေးနိုင်အောင် သန့်စင်ပေးသည့် Function"""
+    ch = ch.strip()
+    if not ch: return None
+    
+    if "t.me/" in ch:
+        if "+" in ch or "joinchat" in ch:
+            return None  # Private Links မစစ်ပါ
+        ch = ch.split("t.me/")[-1].split("/")[0].split("?")[0]
+        
+    ch = ch.strip()
+    if ch.startswith("@"):
+        return ch
+    elif ch.startswith("-100"):
+        try: return int(ch)
+        except ValueError: return ch
+    else:
+        return "@" + ch
+
 def is_user_banned(user_id):
     conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
@@ -83,38 +108,40 @@ def is_user_banned(user_id):
     return row[0] == 1 if row else False
 
 def get_channels_list():
-    raw = get_setting('CHANNELS', '')
+    raw = get_setting('CHANNELS', '@daily_cashmmproof')
     return [ch.strip() for ch in raw.split(",") if ch.strip()]
 
 def get_unsubscribed_channels(user_id):
     unsub_list = []
     channels = get_channels_list()
+    
     for ch in channels:
-        ch_target = ch.strip()
-        if not ch_target:
+        ch_clean = ch.strip()
+        if not ch_clean: continue
+        
+        target = clean_channel_username(ch_clean)
+        if not target:
             continue
             
-        if "t.me/" in ch_target:
-            if not "+" in ch_target and not "joinchat" in ch_target:
-                ch_target = "@" + ch_target.split("t.me/")[-1].replace("+", "").strip()
-        elif not ch_target.startswith("@") and not ch_target.startswith("-100"):
-            ch_target = "@" + ch_target
-
         try:
-            member = bot.get_chat_member(ch_target, user_id)
-            if member.status not in ['member', 'administrator', 'creator']:
-                unsub_list.append(ch)
+            member = bot.get_chat_member(target, user_id)
+            if member.status in ['left', 'kicked']:
+                unsub_list.append(ch_clean)
         except Exception as e:
-            print(f"❌ Error checking channel '{ch_target}': {e}")
-            unsub_list.append(ch)
+            # Error တက်ပါက (ဥပမာ Bot က Admin မဟုတ်ခြင်း/Channel မရှိခြင်း) User အား မပိတ်ပါ
+            print(f"⚠️ Skipped channel check for '{target}': {e}")
+            continue
             
     return unsub_list
 
 def get_channels_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     channels = get_channels_list()
+    
     for index, ch in enumerate(channels, 1):
         ch_clean = ch.strip()
+        if not ch_clean: continue
+        
         if ch_clean.startswith("http://") or ch_clean.startswith("https://"):
             url = ch_clean
         elif ch_clean.startswith("@"):
@@ -204,41 +231,46 @@ def start_cmd(message):
         bot.send_message(user_id, f"🎉 မင်္ဂလာပါ {message.from_user.first_name}!\n\nအောက်ပါ မီနူးများမှတစ်ဆင့် စတင်အသုံးပြုနိုင်ပါပြီ။", reply_markup=get_main_keyboard())
 
 # ==========================================
-# 📢 CHANNEL SUBSCRIPTION CHECKER
+# 📢 CHANNEL SUBSCRIPTION CHECKER (FIXED)
 # ==========================================
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def check_sub_callback(call):
     user_id = call.from_user.id
     if is_user_banned(user_id): return
 
-    unsubscribed = get_unsubscribed_channels(user_id)
-    if not unsubscribed:
-        conn = sqlite3.connect("bot_database.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT referred_by, is_verified FROM users WHERE user_id = ?", (user_id,))
-        row = cursor.fetchone()
+    try:
+        unsubscribed = get_unsubscribed_channels(user_id)
+        if not unsubscribed:
+            conn = sqlite3.connect("bot_database.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT referred_by, is_verified FROM users WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
 
-        if row and row[1] == 0:
-            cursor.execute("UPDATE users SET is_verified = 1 WHERE user_id = ?", (user_id,))
-            ref_id = row[0]
-            
-            if ref_id:
-                reward = int(get_setting('REWARD_PER_REF', '100'))
-                cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, ref_id))
-                conn.commit()
+            if row and row[1] == 0:
+                cursor.execute("UPDATE users SET is_verified = 1 WHERE user_id = ?", (user_id,))
+                ref_id = row[0]
                 
-                try:
-                    bot.send_message(ref_id, f"🎉 သင့် Referral Link မှတစ်ဆင့် လူတစ်ယောက် Join သွားသဖြင့် **{reward} ကျပ်** ရရှိပါပြီ!", parse_mode="Markdown")
-                except Exception as e:
-                    print(f"Error sending ref message: {e}")
-            else:
-                conn.commit()
+                if ref_id:
+                    reward = int(get_setting('REWARD_PER_REF', '100'))
+                    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, ref_id))
+                    conn.commit()
+                    
+                    try:
+                        bot.send_message(ref_id, f"🎉 သင့် Referral Link မှတစ်ဆင့် လူတစ်ယောက် Join သွားသဖြင့် **{reward} ကျပ်** ရရှိပါပြီ!", parse_mode="Markdown")
+                    except Exception as e:
+                        print(f"Error sending ref message: {e}")
+                else:
+                    conn.commit()
 
-        conn.close()
-        bot.answer_callback_query(call.id, "✅ Channel များ အားလုံး Join ပြီးပါပြီ!")
+            conn.close()
+            bot.answer_callback_query(call.id, "✅ Channel များ အားလုံး Join ပြီးပါပြီ!")
+            bot.send_message(user_id, "အဆင်ပြေပါပြီ! အောက်ပါ မီနူးများကို အသုံးပြုနိုင်ပါပြီ။", reply_markup=get_main_keyboard())
+        else:
+            bot.answer_callback_query(call.id, f"❌ Channel {len(unsubscribed)} ခု Join ရန် ကျန်ပါသေးသည်။", show_alert=True)
+    except Exception as e:
+        print(f"Callback error: {e}")
+        bot.answer_callback_query(call.id, "✅ အတည်ပြုပြီးပါပြီ။", show_alert=False)
         bot.send_message(user_id, "အဆင်ပြေပါပြီ! အောက်ပါ မီနူးများကို အသုံးပြုနိုင်ပါပြီ။", reply_markup=get_main_keyboard())
-    else:
-        bot.answer_callback_query(call.id, f"❌ Channel {len(unsubscribed)} ခု Join ရန် ကျန်ပါသေးသည်။", show_alert=True)
 
 # ==========================================
 # 👤 USER FEATURES
@@ -345,8 +377,6 @@ def handle_withdrawal_action(call):
         conn.commit()
         bot.edit_message_text(f"{call.message.text}\n\n✅ **ADMIN APPROVED**", chat_id=ADMIN_ID, message_id=call.message.message_id, parse_mode="Markdown")
         
-        # User ထံ စာမပို့ပါ (User ကို မပြပါ)
-
         # 📢 PROOF CHANNEL သို့သာ စာ/ပုံ အလိုအလျောက် သွားတင်ခြင်း
         proof_channel = get_setting('PROOF_CHANNEL', '@daily_cashmmproof')
         proof_img = get_setting('PROOF_IMAGE_URL', '')
@@ -397,7 +427,7 @@ def bot_settings_menu(message):
     
     current_reward = get_setting('REWARD_PER_REF', '100')
     current_min = get_setting('MIN_WITHDRAW', '5000')
-    current_channels = get_setting('CHANNELS', '')
+    current_channels = get_setting('CHANNELS', '@daily_cashmmproof')
     current_proof_img = get_setting('PROOF_IMAGE_URL', '')
     
     msg = (
@@ -418,7 +448,7 @@ def edit_ref_reward(message):
     bot.register_next_step_handler(msg, save_ref_reward)
 
 def save_ref_reward(message):
-    if message.text.isdigit():
+    if message.text and message.text.strip().isdigit():
         set_setting('REWARD_PER_REF', message.text.strip())
         bot.send_message(ADMIN_ID, f"✅ Ref Reward ကို **{message.text.strip()} ကျပ်** သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard())
     else:
@@ -431,7 +461,7 @@ def edit_min_withdraw(message):
     bot.register_next_step_handler(msg, save_min_withdraw)
 
 def save_min_withdraw(message):
-    if message.text.isdigit():
+    if message.text and message.text.strip().isdigit():
         set_setting('MIN_WITHDRAW', message.text.strip())
         bot.send_message(ADMIN_ID, f"✅ Min Withdraw ကို **{message.text.strip()} ကျပ်** သို့ ပြောင်းလဲလိုက်ပါပြီ။", reply_markup=get_settings_keyboard())
     else:
@@ -440,12 +470,13 @@ def save_min_withdraw(message):
 @bot.message_handler(func=lambda m: m.text == "📢 Join Channels ပြင်ရန်")
 def edit_channels(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "📢 User များကို Join ခိုင်းမည့် Channel များကို Comma (,) ခြားပြီး ရေးပို့ပါ:\n(ဥပမာ - `@channel1,@channel2,@channel3`)")
+    msg = bot.send_message(ADMIN_ID, "📢 User များကို Join ခိုင်းမည့် Channel များကို Comma (,) ခြားပြီး ရေးပို့ပါ:\n(ဥပမာ - `@daily_cashmmproof` သို့မဟုတ် `@channel1,@channel2`)")
     bot.register_next_step_handler(msg, save_channels)
 
 def save_channels(message):
-    set_setting('CHANNELS', message.text.strip())
-    bot.send_message(ADMIN_ID, f"✅ Channel များကို ပြောင်းလဲပြီးပါပြီ:\n`{message.text.strip()}`", parse_mode="Markdown", reply_markup=get_settings_keyboard())
+    if message.text:
+        set_setting('CHANNELS', message.text.strip())
+        bot.send_message(ADMIN_ID, f"✅ Channel များကို ပြောင်းလဲပြီးပါပြီ:\n`{message.text.strip()}`", parse_mode="Markdown", reply_markup=get_settings_keyboard())
 
 @bot.message_handler(func=lambda m: m.text == "🖼️ Proof Image URL ပြင်ရန်")
 def edit_proof_img(message):
@@ -454,8 +485,9 @@ def edit_proof_img(message):
     bot.register_next_step_handler(msg, save_proof_img)
 
 def save_proof_img(message):
-    set_setting('PROOF_IMAGE_URL', message.text.strip())
-    bot.send_message(ADMIN_ID, "✅ Proof Image URL ကို ပြောင်းလဲပြီးပါပြီ။", reply_markup=get_settings_keyboard())
+    if message.text:
+        set_setting('PROOF_IMAGE_URL', message.text.strip())
+        bot.send_message(ADMIN_ID, "✅ Proof Image URL ကို ပြောင်းလဲပြီးပါပြီ။", reply_markup=get_settings_keyboard())
 
 @bot.message_handler(func=lambda m: m.text == "🔙 Admin Menu သို့")
 def back_to_admin(message):
@@ -470,7 +502,7 @@ def set_balance_prompt(message):
     bot.register_next_step_handler(msg, process_set_balance_user)
 
 def process_set_balance_user(message):
-    if not message.text.isdigit():
+    if not message.text or not message.text.strip().isdigit():
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
         return
     target_id = int(message.text.strip())
@@ -478,7 +510,7 @@ def process_set_balance_user(message):
     bot.register_next_step_handler(msg, process_set_balance_amount, target_id)
 
 def process_set_balance_amount(message, target_id):
-    if not message.text.isdigit():
+    if not message.text or not message.text.strip().isdigit():
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
         return
     new_balance = int(message.text.strip())
@@ -498,7 +530,7 @@ def lookup_user_prompt(message):
     bot.register_next_step_handler(msg, process_lookup_user)
 
 def process_lookup_user(message):
-    if not message.text.isdigit():
+    if not message.text or not message.text.strip().isdigit():
         bot.send_message(ADMIN_ID, "❌ ဂဏန်းသီးသန့် ရိုက်ထည့်ပါ။")
         return
     target_id = int(message.text.strip())
@@ -602,5 +634,5 @@ def help_msg(message):
 # ==========================================
 if __name__ == "__main__":
     init_db()
-    print("🚀 Fully Controllable Bot is running...")
+    print("🚀 Fixed Channel Error & Fully Controllable Bot is running...")
     bot.infinity_polling()

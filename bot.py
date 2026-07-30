@@ -47,7 +47,7 @@ def init_db():
         'MIN_WITHDRAW': '5000',
         'CHANNELS': '@daily_cashmmproof',
         'PROOF_CHANNEL': '@daily_cashmmproof',
-        'PROOF_IMAGE_URL': 'https://i.ibb.co/3s3KqV7/reward-logo.png'
+        'PROOF_IMAGE_URL': ''
     }
     for k, v in defaults.items():
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
@@ -229,7 +229,7 @@ def check_sub_callback(call):
         bot.answer_callback_query(call.id, f"❌ Channel {len(unsubscribed)} ခု Join ရန် ကျန်ပါသေးသည်။", show_alert=True)
 
 # ==========================================
-# 💸 AUTO WITHDRAWAL & PROOF CHANNEL SYSTEM
+# 💸 WITHDRAWAL SYSTEM
 # ==========================================
 @bot.message_handler(func=lambda m: m.text == "💸 ငွေထုတ်မည်")
 def request_withdraw(message):
@@ -243,7 +243,6 @@ def request_withdraw(message):
         bot.send_message(user_id, f"⚠️ အနည်းဆုံး **{min_withdraw:,} ကျပ်** ပြည့်မှ ငွေထုတ်ယူနိုင်ပါမည်။\nသင့်လက်ရှိ မုန့်ဖိုး လက်ကျန်: **{balance:,} ကျပ်**", parse_mode="Markdown")
         return
 
-    # KBZPay / WavePay ရွေးချယ်ခိုင်းသည့် Inline Buttons
     markup = types.InlineKeyboardMarkup(row_width=2)
     btn_kpay = types.InlineKeyboardButton("📱 KBZPay", callback_data="pay_KBZPay")
     btn_wave = types.InlineKeyboardButton("📱 WavePay", callback_data="pay_WavePay")
@@ -254,21 +253,22 @@ def request_withdraw(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pay_"))
 def select_payment_method(call):
     user_id = call.from_user.id
-    method = call.data.split("_")[1] # KBZPay သို့မဟုတ် WavePay
+    method = call.data.split("_")[1]
     
     bot.delete_message(call.message.chat.id, call.message.message_id)
     
     msg = bot.send_message(
         user_id, 
         f"📱 ရွေးချယ်ထားသော စနစ်: **{method}**\n\n"
-        f"ကျေးဇူးပြု၍ ငွေထုတ်ယူမည့် **{method} ဖုန်းနံပါတ်** (သို့မဟုတ်) **အကောင့်အမည်** ကို ရေးပို့ပေးပါ:",
+        f"ကျေးဇူးပြု၍ ငွေထုတ်ယူမည့် **{method} အကောင့်အမည်** နှင့် **ဖုန်းနံပါတ်** ကို ရေးပို့ပေးပါ:\n\n"
+        f"💡 **E.g. (ဥပမာ) -** `U Aung Aung - 09123456789`",
         parse_mode="Markdown"
     )
     bot.register_next_step_handler(msg, process_account_info, method)
 
 def process_account_info(message, method):
     user_id = message.from_user.id
-    account_info = message.text.strip()
+    account_info = message.text.strip() if message.text else "N/A"
     
     balance = get_user_balance(user_id)
     min_withdraw = int(get_setting('MIN_WITHDRAW', '5000'))
@@ -314,7 +314,7 @@ def process_withdraw_amount(message, method, account_info):
         f"✅ **ငွေထုတ်ယူမှု တောင်းဆိုပြီးပါပြီ!**\n\n"
         f"💰 ထုတ်ယူသည့် ပမာဏ: **{amount:,} ကျပ်**\n"
         f"📱 ငွေလွှဲစနစ်: **{method}**\n"
-        f"💳 အကောင့်: `{account_info}`\n\n"
+        f"💳 အကောင့်အချက်အလက်: `{account_info}`\n\n"
         f"📢 Proof Channel တွင် သွားရောက် စစ်ဆေးနိုင်ပါသည်။", 
         parse_mode="Markdown"
     )
@@ -341,20 +341,24 @@ def process_withdraw_amount(message, method, account_info):
     
     try:
         if proof_img:
-            bot.send_photo(proof_channel, proof_img, caption=proof_msg, parse_mode="Markdown")
+            try:
+                bot.send_photo(proof_channel, proof_img, caption=proof_msg, parse_mode="Markdown")
+            except Exception as img_err:
+                print(f"⚠️ Photo failed ({img_err}), sending text fallback...")
+                bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
         else:
             bot.send_message(proof_channel, proof_msg, parse_mode="Markdown")
     except Exception as e:
-        print(f"❌ Proof Channel သို့ စာတင်ရာတွင် Error ဖြစ်ပါသည်: {e}")
+        print(f"❌ Proof Channel Posting Error: {e}")
         
-    # 3. Admin သို့လည်း Record စာရင်းအဖြစ် အသိပေးခြင်း
+    # 3. Admin သို့လည်း အကြောင်းကြားခြင်း
     if ADMIN_ID != 0:
         admin_msg = (
             f"🚨 **Auto Paid Withdrawal Request**\n\n"
             f"👤 User ID: `{user_id}`\n"
             f"💰 ပမာဏ: **{amount:,} ကျပ်**\n"
             f"📱 စနစ်: **{method}**\n"
-            f"💳 အကောင့်: `{account_info}`\n"
+            f"💳 အကောင့်အချက်အလက်: `{account_info}`\n"
             f"📢 Proof Channel သို့ တင်ပြီးပါပြီ။"
         )
         try: bot.send_message(ADMIN_ID, admin_msg, parse_mode="Markdown")
@@ -409,12 +413,11 @@ def bot_settings_menu(message):
         f"🎁 **Ref Reward:** {current_reward} ကျပ်\n"
         f"💸 **Min Withdraw:** {current_min} ကျပ်\n"
         f"📢 **Channels:** `{current_channels}`\n"
-        f"🖼️ **Proof Image URL:** `{current_proof_img}`\n\n"
+        f"🖼️ **Proof Image Status:** {'✅ ပုံ သတ်မှတ်ပြီးပါပြီ' if current_proof_img else '❌ မသတ်မှတ်ရသေးပါ'}\n\n"
         f"အောက်ပါ Button များမှတစ်ဆင့် စိတ်ကြိုက် ပြင်ဆင်နိုင်ပါသည်။"
     )
     bot.send_message(ADMIN_ID, msg, reply_markup=get_settings_keyboard(), parse_mode="Markdown")
 
-# --- SETTINGS EDIT HANDLERS ---
 @bot.message_handler(func=lambda m: m.text == "🎁 Ref Reward ပြင်ရန်")
 def edit_ref_reward(message):
     if message.from_user.id != ADMIN_ID: return
@@ -452,16 +455,28 @@ def save_channels(message):
         set_setting('CHANNELS', message.text.strip())
         bot.send_message(ADMIN_ID, f"✅ Channel များကို ပြောင်းလဲပြီးပါပြီ:\n`{message.text.strip()}`", parse_mode="Markdown", reply_markup=get_settings_keyboard())
 
+# --- ✨ ပုံတိုက်ရိုက် Send ပေးနိုင်သော အပိုင်း ---
 @bot.message_handler(func=lambda m: m.text == "🖼️ Proof Image URL ပြင်ရန်")
 def edit_proof_img(message):
     if message.from_user.id != ADMIN_ID: return
-    msg = bot.send_message(ADMIN_ID, "🖼️ Proof Channel တွင် တင်မည့် ပုံရုပ်ထွက် (Direct Image Link URL) ကို ရေးပို့ပါ:")
+    msg = bot.send_message(
+        ADMIN_ID, 
+        "🖼️ Proof Channel တွင် တင်မည့် **ပုံကို Bot ထဲသို့ တိုက်ရိုက် Send (Photo) ပို့ပေးပါ**:\n"
+        "(သို့မဟုတ် Image Link URL ပို့ပေးပါ)",
+        parse_mode="Markdown"
+    )
     bot.register_next_step_handler(msg, save_proof_img)
 
 def save_proof_img(message):
-    if message.text:
+    if message.photo:
+        file_id = message.photo[-1].file_id
+        set_setting('PROOF_IMAGE_URL', file_id)
+        bot.send_message(ADMIN_ID, "✅ Proof Image ကို Bot ထဲတွင် **တိုက်ရိုက် သိမ်းဆည်းလိုက်ပါပြီ!** ✨", reply_markup=get_settings_keyboard(), parse_mode="Markdown")
+    elif message.text:
         set_setting('PROOF_IMAGE_URL', message.text.strip())
         bot.send_message(ADMIN_ID, "✅ Proof Image URL ကို ပြောင်းလဲပြီးပါပြီ။", reply_markup=get_settings_keyboard())
+    else:
+        bot.send_message(ADMIN_ID, "❌ ကျေးဇူးပြု၍ ပုံ သို့မဟုတ် Link တစ်ခုခု ပို့ပေးပါ။")
 
 @bot.message_handler(func=lambda m: m.text == "🔙 Admin Menu သို့")
 def back_to_admin(message):
@@ -608,5 +623,5 @@ def help_msg(message):
 # ==========================================
 if __name__ == "__main__":
     init_db()
-    print("🚀 Auto-Withdrawal & Instant Proof Bot is running...")
+    print("🚀 Direct Image Upload Bot is running...")
     bot.infinity_polling()
